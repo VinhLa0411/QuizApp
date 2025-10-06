@@ -1,0 +1,6 @@
+<resources>
+    <color name="quiz_primary">#6C63FF</color>
+    <color name="quiz_primary_light">#8B84FF</color>
+    <color name="quiz_grad_start">#7C4DFF</color>
+    <color name="quiz_grad_end">#F48FB1</color>
+</resources>

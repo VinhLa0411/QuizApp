@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Viền ngoài của tờ giấy -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#000000"
+        android:strokeWidth="1"
+        android:pathData="M6,2h9l5,5v13c0,1.1 -0.9,2 -2,2H6c-1.1,0 -2,-0.9 -2,-2V4c0,-1.1 0.9,-2 2,-2z" />
+
+    <!-- Góc gập của tờ giấy -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#000000"
+        android:strokeWidth="1"
+        android:pathData="M15,2v5h5" />
+
+    <!-- Một vài dòng kẻ mô phỏng nội dung -->
+    <path
+        android:strokeColor="#000000"
+        android:strokeWidth="0.8"
+        android:pathData="M8,10h8M8,13h8M8,16h8" />
+</vector>
