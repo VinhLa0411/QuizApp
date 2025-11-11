@@ -3,4 +3,7 @@
     <color name="quiz_primary_light">#8B84FF</color>
     <color name="quiz_grad_start">#7C4DFF</color>
     <color name="quiz_grad_end">#F48FB1</color>
+    <color name="onImageStrong">#FFFFFFFF</color>
+    <color name="onImageMedium">#E6FFFFFF</color>
+    <color name="onImageShadow">#80000000</color>
 </resources>

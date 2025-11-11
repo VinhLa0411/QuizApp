@@ -1,4 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
 
-</selector>
+    <!-- gradient chính -->
+    <item>
+        <shape>
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#FFFDFBFF"
+            android:centerColor="#FFEDE7FF"
+            android:endColor="#FFFCE9FF"/>
+        </shape>
+    </item>
+
+    <!-- 2 blob mờ để nhìn “hiện đại” hơn -->
+    <item android:top="0dp" android:left="-80dp">
+        <shape android:shape="oval">
+            <size android:width="320dp" android:height="320dp"/>
+            <gradient
+                android:type="radial"
+                android:gradientRadius="220dp"
+                android:centerX="0.6"
+                android:centerY="0.2"
+                android:startColor="#40B3A7FF"
+            android:endColor="#00B3A7FF"/>
+        </shape>
+    </item>
+
+    <item android:bottom="-40dp" android:right="-60dp">
+        <shape android:shape="oval">
+            <size android:width="280dp" android:height="280dp"/>
+            <gradient
+                android:type="radial"
+                android:gradientRadius="200dp"
+                android:centerX="0.4"
+                android:centerY="0.8"
+                android:startColor="#40FFB8E6"
+            android:endColor="#00FFB8E6"/>
+        </shape>
+    </item>
+</layer-list>

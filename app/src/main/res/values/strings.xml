@@ -1,4 +1,9 @@
 <resources>
     <string name="app_name">QuizApp</string>
     <string name="default_web_client_id">1029747913175-55qr01kei1lh9ufofgf2vf42c3gl5hk7.apps.googleusercontent.com</string>
+    <string name="cd_avatar">Ảnh đại diện người dùng</string>
+    <string name="role_student">Học viên</string>
+    <string name="btn_edit">Chỉnh sửa thông tin</string>
+    <string name="btn_history">Xem lịch sử làm bài</string>
+    <string name="btn_logout">Đăng xuất</string>
 </resources>

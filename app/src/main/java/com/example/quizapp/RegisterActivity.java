@@ -53,6 +53,10 @@ public class RegisterActivity extends AppCompatActivity {
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
+        // Prefill email nếu có
+        String prefill = getIntent().getStringExtra("prefillEmail");
+        if (prefill != null && !prefill.isEmpty()) b.emailEt.setText(prefill);
+
         b.btnPickAvatar.setOnClickListener(v -> pickImageLauncher.launch("image/*"));
         b.dobEt.setOnClickListener(v -> openDatePicker());
         b.btnRegister.setOnClickListener(v -> registerUser());
@@ -76,18 +80,17 @@ public class RegisterActivity extends AppCompatActivity {
         return rb.getId() == R.id.rbTeacher ? "teacher" : "student";
     }
 
-    // ======= Đăng ký dùng Firestore (không Storage) =======
     private void registerUser() {
-        String name = b.fullNameEt.getText().toString().trim();
-        String dob = b.dobEt.getText().toString().trim();
+        String name  = b.fullNameEt.getText().toString().trim();
+        String dob   = b.dobEt.getText().toString().trim();
         String phone = b.phoneEt.getText().toString().trim();
         String email = b.emailEt.getText().toString().trim();
-        String pass = b.passEt.getText().toString().trim();
-        String role = getSelectedRole();
+        String pass  = b.passEt.getText().toString().trim();
+        String role  = getSelectedRole();
 
         if (selectedAvatarUri == null) { toast("Chọn ảnh đại diện"); return; }
-        if (TextUtils.isEmpty(name)) { b.fullNameEt.setError("Nhập họ tên"); return; }
-        if (TextUtils.isEmpty(dob)) { b.dobEt.setError("Chọn ngày sinh"); return; }
+        if (TextUtils.isEmpty(name))  { b.fullNameEt.setError("Nhập họ tên"); return; }
+        if (TextUtils.isEmpty(dob))   { b.dobEt.setError("Chọn ngày sinh"); return; }
         if (TextUtils.isEmpty(phone)) { b.phoneEt.setError("Nhập số điện thoại"); return; }
         if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) { b.emailEt.setError("Email không hợp lệ"); return; }
         if (pass.length() < 6) { b.passEt.setError("Mật khẩu ≥ 6 ký tự"); return; }
@@ -99,15 +102,13 @@ public class RegisterActivity extends AppCompatActivity {
                 .addOnSuccessListener(auth -> {
                     String uid = auth.getUser().getUid();
 
-                    // 2) Nén + mã hóa ảnh sang Base64 để lưu Firestore
+                    // 2) Ảnh → Base64
                     String avatarBase64 = encodeImageToBase64(selectedAvatarUri);
                     if (avatarBase64 == null) {
-                        dlg.dismiss();
-                        toast("Không thể xử lý ảnh. Hãy chọn ảnh khác.");
-                        return;
+                        dlg.dismiss(); toast("Không thể xử lý ảnh."); return;
                     }
 
-                    // 3) Lưu document users/{uid}
+                    // 3) Lưu users/{uid}
                     Map<String, Object> settings = new HashMap<>();
                     settings.put("bgm", false);
                     settings.put("sfx", false);
@@ -118,53 +119,44 @@ public class RegisterActivity extends AppCompatActivity {
                     user.put("displayName", name);
                     user.put("dob", dob);
                     user.put("phone", phone);
-                    user.put("email", email);
+                    user.put("email", email);   // 👈 lưu email
                     user.put("role", role);
-                    user.put("avatarBase64", avatarBase64); // 👈 lưu trực tiếp
+                    user.put("avatarBase64", avatarBase64);
                     user.put("createdAt", new Date());
                     user.put("settings", settings);
 
                     db.collection("users").document(uid).set(user)
                             .addOnSuccessListener(v -> {
                                 dlg.dismiss();
-                                toast("Đăng ký thành công! Hãy đăng nhập.");
-                                finish(); // quay về Login
+                                // Đi thẳng vào Home theo role
+                                Class<?> dest = "teacher".equals(role)
+                                        ? TeacherHomeActivity.class : StudentHomeActivity.class;
+                                startActivity(new android.content.Intent(this, dest)
+                                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                                                | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK));
+                                finish();
                             })
-                            .addOnFailureListener(e -> {
-                                dlg.dismiss();
-                                toast("Lỗi lưu Firestore: " + e.getMessage());
-                            });
+                            .addOnFailureListener(e -> { dlg.dismiss(); toast("Lỗi lưu Firestore: " + e.getMessage()); });
                 })
-                .addOnFailureListener(e -> {
-                    dlg.dismiss();
-                    toast(e.getMessage());
-                });
+                .addOnFailureListener(e -> { dlg.dismiss(); toast(e.getMessage()); });
     }
 
-    // ===== Helper: nén ảnh → Base64 để lưu Firestore =====
     private String encodeImageToBase64(Uri uri) {
         try (InputStream in = getContentResolver().openInputStream(uri)) {
             Bitmap src = BitmapFactory.decodeStream(in);
             if (src == null) return null;
-
-            // Resize về 256x256 giữ tỉ lệ
             int w = src.getWidth(), h = src.getHeight();
             int target = 256;
             float scale = Math.min((float) target / w, (float) target / h);
             Bitmap resized = Bitmap.createScaledBitmap(src,
                     Math.max(1, Math.round(w * scale)),
-                    Math.max(1, Math.round(h * scale)),
-                    true);
+                    Math.max(1, Math.round(h * scale)), true);
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            resized.compress(Bitmap.CompressFormat.JPEG, 60, baos); // ~10–40KB
+            resized.compress(Bitmap.CompressFormat.JPEG, 60, baos);
             byte[] bytes = baos.toByteArray();
-
             return Base64.encodeToString(bytes, Base64.NO_WRAP);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
+        } catch (Exception e) { e.printStackTrace(); return null; }
     }
 
     private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_LONG).show(); }

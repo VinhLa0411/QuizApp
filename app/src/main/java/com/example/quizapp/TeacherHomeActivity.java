@@ -2,17 +2,21 @@ package com.example.quizapp;
 
 import android.os.Bundle;
 import androidx.appcompat.app.AppCompatActivity;
-import com.example.quizapp.databinding.ActivityTeacherHomeBinding;
+import androidx.fragment.app.Fragment;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 public class TeacherHomeActivity extends AppCompatActivity {
-    private ActivityTeacherHomeBinding b;
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        b = ActivityTeacherHomeBinding.inflate(getLayoutInflater());
-        setContentView(b.getRoot());
+        setContentView(R.layout.activity_teacher_home);
 
-        b.textView.setText("Xin chào GIẢNG VIÊN!");
+        BottomNavigationView nav = findViewById(R.id.teacherBottomNav);
+        nav.setOnItemSelectedListener(item -> {
+            Fragment f = (item.getItemId()==R.id.nav_qbank) ? new TeacherQuestionsFragment() : new AccountFragment();
+            getSupportFragmentManager().beginTransaction()
+                    .replace(R.id.teacherFragmentContainer, f).commit();
+            return true;
+        });
+        nav.setSelectedItemId(R.id.nav_qbank);
     }
 }

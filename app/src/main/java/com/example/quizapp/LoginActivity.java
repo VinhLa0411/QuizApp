@@ -5,9 +5,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
-import android.view.View;
 import android.widget.*;
-
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
@@ -39,7 +37,7 @@ public class LoginActivity extends AppCompatActivity {
     private GoogleSignInClient googleClient;
     private ActivityResultLauncher<Intent> googleLauncher;
 
-    // false = student mode (mặc định), true = teacher mode
+    // false = student (mặc định), true = teacher
     private boolean isTeacherMode = false;
 
     @Override
@@ -47,11 +45,9 @@ public class LoginActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
 
-        // Firebase
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
-        // Views
         emailEt = findViewById(R.id.emailEt);
         passEt = findViewById(R.id.passEt);
         loginBtn = findViewById(R.id.loginBtn);
@@ -61,7 +57,6 @@ public class LoginActivity extends AppCompatActivity {
         googleBtn = findViewById(R.id.googleSignInBtn);
         switchRoleTv = findViewById(R.id.switchRoleTv);
 
-        // Show/Hide password
         showPassCb.setOnCheckedChangeListener((cb, checked) -> {
             passEt.setInputType(checked
                     ? InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
@@ -69,15 +64,18 @@ public class LoginActivity extends AppCompatActivity {
             passEt.setSelection(passEt.getText().length());
         });
 
-        // Toggle teacher/student
         switchRoleTv.setOnClickListener(v -> toggleRole());
 
-        // Actions
         loginBtn.setOnClickListener(v -> login());
-        registerBtn.setOnClickListener(v -> register()); // dùng hàm register() của lớp
-        forgotTv.setOnClickListener(v -> resetPassword());
 
-        // Google sign-in
+        // ✅ sửa: mở form RegisterActivity thay vì tạo tài khoản ở đây
+        registerBtn.setOnClickListener(v -> {
+            Intent i = new Intent(this, RegisterActivity.class);
+            i.putExtra("prefillEmail", emailEt.getText().toString().trim());
+            startActivity(i);
+        });
+
+        forgotTv.setOnClickListener(v -> resetPassword());
         setupGoogleSignIn();
     }
 
@@ -85,7 +83,6 @@ public class LoginActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         if (mAuth.getCurrentUser() != null) {
-            // Đã có session -> vào thẳng theo role
             routeToHomeByRole(true);
         }
     }
@@ -95,20 +92,17 @@ public class LoginActivity extends AppCompatActivity {
         if (isTeacherMode) {
             switchRoleTv.setText("Đăng nhập với tư cách Học viên");
             loginBtn.setText("Đăng nhập Giảng viên");
-            registerBtn.setEnabled(false);        // giáo viên không tự đăng ký
-            // Google thường dùng cho học viên → có thể ẩn nếu muốn
-            // googleBtn.setVisibility(View.GONE);
+            registerBtn.setEnabled(false);
             Toast.makeText(this, "Chế độ: Giảng viên", Toast.LENGTH_SHORT).show();
         } else {
             switchRoleTv.setText("Đăng nhập với tư cách Giảng viên");
             loginBtn.setText("Đăng nhập");
             registerBtn.setEnabled(true);
-            // googleBtn.setVisibility(View.VISIBLE);
             Toast.makeText(this, "Chế độ: Học viên", Toast.LENGTH_SHORT).show();
         }
     }
 
-    // ---------------- Email/Password ----------------
+    // ---------- Email/Password ----------
     private void login() {
         String email = emailEt.getText().toString().trim();
         String pass  = passEt.getText().toString().trim();
@@ -118,36 +112,29 @@ public class LoginActivity extends AppCompatActivity {
 
         mAuth.signInWithEmailAndPassword(email, pass)
                 .addOnSuccessListener(r -> {
-                    dlg.dismiss();
-                    // Sau khi đăng nhập thành công, điều hướng theo role
-                    routeToHomeByRole(false);
+                    String uid = Objects.requireNonNull(mAuth.getCurrentUser()).getUid();
+                    // ✅ nếu chưa có hồ sơ Firestore -> mở RegisterActivity để hoàn tất
+                    db.collection("users").document(uid).get()
+                            .addOnSuccessListener(doc -> {
+                                dlg.dismiss();
+                                if (!doc.exists()) {
+                                    Intent i = new Intent(this, RegisterActivity.class);
+                                    i.putExtra("prefillEmail", email);
+                                    startActivity(i);
+                                    finish();
+                                    return;
+                                }
+                                // đã có hồ sơ -> điều hướng theo role
+                                goHomeByDoc(doc, true);
+                            })
+                            .addOnFailureListener(e -> {
+                                dlg.dismiss();
+                                Toast.makeText(this, "Lỗi đọc hồ sơ: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                            });
                 })
                 .addOnFailureListener(e -> {
                     dlg.dismiss();
                     Toast.makeText(this, "Đăng nhập thất bại: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                });
-    }
-
-    private void register() {
-        if (isTeacherMode) {
-            Toast.makeText(this, "Chỉ quản trị viên mới thêm giảng viên", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        String email = emailEt.getText().toString().trim();
-        String pass = passEt.getText().toString().trim();
-        if (!validate(email, pass)) return;
-
-        ProgressDialog dlg = ProgressDialog.show(this, null, "Đang tạo tài khoản...", true, false);
-
-        mAuth.createUserWithEmailAndPassword(email, pass)
-                .addOnSuccessListener(r -> {
-                    String uid = Objects.requireNonNull(mAuth.getCurrentUser()).getUid();
-                    createUserDocIfMissing(uid, email, "student", dlg, /*thenRoute=*/true);
-                })
-                .addOnFailureListener(e -> {
-                    dlg.dismiss();
-                    Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
                 });
     }
 
@@ -163,18 +150,12 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private boolean validate(String email, String pass) {
-        if (TextUtils.isEmpty(email)) {
-            emailEt.setError("Email không được trống");
-            return false;
-        }
-        if (TextUtils.isEmpty(pass) || pass.length() < 6) {
-            passEt.setError("Mật khẩu ≥ 6 ký tự");
-            return false;
-        }
+        if (TextUtils.isEmpty(email)) { emailEt.setError("Email không được trống"); return false; }
+        if (TextUtils.isEmpty(pass) || pass.length() < 6) { passEt.setError("Mật khẩu ≥ 6 ký tự"); return false; }
         return true;
     }
 
-    // ---------------- Google Sign-in ----------------
+    // ---------- Google ----------
     private void setupGoogleSignIn() {
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestIdToken(getString(R.string.default_web_client_id))
@@ -193,118 +174,74 @@ public class LoginActivity extends AppCompatActivity {
                     Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
                     try {
                         GoogleSignInAccount account = task.getResult(ApiException.class);
-                        if (account != null) {
-                            firebaseAuthWithGoogle(account.getIdToken());
-                        } else {
-                            Toast.makeText(this, "Google sign-in failed.", Toast.LENGTH_LONG).show();
-                        }
+                        if (account != null) firebaseAuthWithGoogle(account.getIdToken());
                     } catch (ApiException e) {
                         Toast.makeText(this, "Google sign-in failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
                     }
                 });
-
         googleBtn.setOnClickListener(v -> googleLauncher.launch(googleClient.getSignInIntent()));
     }
 
     private void firebaseAuthWithGoogle(String idToken) {
-        if (idToken == null) {
-            Toast.makeText(this, "Thiếu ID token", Toast.LENGTH_LONG).show();
-            return;
-        }
+        if (idToken == null) { Toast.makeText(this, "Thiếu ID token", Toast.LENGTH_LONG).show(); return; }
         ProgressDialog dlg = ProgressDialog.show(this, null, "Đang đăng nhập Google...", true, false);
         AuthCredential credential = GoogleAuthProvider.getCredential(idToken, null);
         mAuth.signInWithCredential(credential)
                 .addOnSuccessListener(authResult -> {
                     String uid = Objects.requireNonNull(authResult.getUser()).getUid();
                     String displayName = authResult.getUser().getDisplayName();
-                    // Mặc định Google tạo học viên; admin có thể đổi role sau
-                    createUserDocIfMissing(uid,
-                            (displayName == null || displayName.isEmpty()) ? "User" : displayName,
-                            "student",
-                            dlg,
-                            /*thenRoute=*/true);
+                    // Nếu chưa có hồ sơ -> tạo nhanh hồ sơ mặc định học viên (sẽ sửa sau nếu cần)
+                    db.collection("users").document(uid).get()
+                            .addOnSuccessListener(doc -> {
+                                if (!doc.exists()) {
+                                    Map<String,Object> settings = new HashMap<>();
+                                    settings.put("bgm", false);
+                                    settings.put("sfx", false);
+                                    settings.put("perQuestionTimerOn", false);
+                                    settings.put("questionsPerPlay", 5);
+                                    Map<String,Object> user = new HashMap<>();
+                                    user.put("displayName", (displayName==null||displayName.isEmpty())?"User":displayName);
+                                    user.put("role", "student");
+                                    user.put("settings", settings);
+                                    db.collection("users").document(uid).set(user)
+                                            .addOnSuccessListener(v -> { dlg.dismiss(); routeToHomeByRole(true); })
+                                            .addOnFailureListener(e -> { dlg.dismiss(); Toast.makeText(this, "Tạo hồ sơ thất bại: "+e.getMessage(), Toast.LENGTH_LONG).show(); });
+                                } else {
+                                    dlg.dismiss();
+                                    routeToHomeByRole(true);
+                                }
+                            })
+                            .addOnFailureListener(e -> { dlg.dismiss(); Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show(); });
                 })
-                .addOnFailureListener(e -> {
-                    dlg.dismiss();
-                    Toast.makeText(this, "Firebase auth failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                });
+                .addOnFailureListener(e -> { dlg.dismiss(); Toast.makeText(this, "Firebase auth failed: " + e.getMessage(), Toast.LENGTH_LONG).show(); });
     }
 
-    // ---------------- Firestore helpers ----------------
-    private void createUserDocIfMissing(String uid, String name, String role,
-                                        ProgressDialog dlg, boolean thenRoute) {
-        db.collection("users").document(uid).get()
-                .addOnSuccessListener(snap -> {
-                    if (!snap.exists()) {
-                        Map<String, Object> settings = new HashMap<>();
-                        settings.put("bgm", false);
-                        settings.put("sfx", false);
-                        settings.put("perQuestionTimerOn", false);
-                        settings.put("questionsPerPlay", 5);
-
-                        Map<String, Object> user = new HashMap<>();
-                        user.put("displayName", name);
-                        user.put("role", role);
-                        user.put("avatarId", "default");
-                        user.put("settings", settings);
-
-                        db.collection("users").document(uid).set(user)
-                                .addOnSuccessListener(v -> {
-                                    if (dlg != null) dlg.dismiss();
-                                    if (thenRoute) routeToHomeByRole(true);
-                                })
-                                .addOnFailureListener(e -> {
-                                    if (dlg != null) dlg.dismiss();
-                                    Toast.makeText(this, "Tạo hồ sơ thất bại: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                                });
-                    } else {
-                        if (dlg != null) dlg.dismiss();
-                        if (thenRoute) routeToHomeByRole(true);
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    if (dlg != null) dlg.dismiss();
-                    Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
-                });
-    }
-
-    /**
-     * Đọc users/{uid} -> role, kiểm tra hợp lệ với mode hiện tại,
-     * rồi điều hướng tới Home tương ứng. Nếu sai role khi ở Teacher mode -> signOut.
-     */
+    // ---------- Route helpers ----------
     private void routeToHomeByRole(boolean clearTask) {
         FirebaseUser user = mAuth.getCurrentUser();
         if (user == null) return;
+        db.collection("users").document(user.getUid()).get()
+                .addOnSuccessListener(this::goHomeByDoc)
+                .addOnFailureListener(e -> Toast.makeText(this, "Lỗi đọc role: " + e.getMessage(), Toast.LENGTH_LONG).show());
+    }
 
-        String uid = user.getUid();
-        db.collection("users").document(uid).get()
-                .addOnSuccessListener((DocumentSnapshot doc) -> {
-                    String role = doc.getString("role");
-                    if (role == null) role = "student";
+    private void goHomeByDoc(DocumentSnapshot doc) { goHomeByDoc(doc, true); }
 
-                    if (isTeacherMode && !"teacher".equals(role)) {
-                        Toast.makeText(this, "Tài khoản này không có quyền giảng viên", Toast.LENGTH_LONG).show();
-                        mAuth.signOut();
-                        // Nếu dùng Google, nên signOut Google nữa (tuỳ bạn):
-                        GoogleSignIn.getClient(this,
-                                new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build()
-                        ).signOut();
-                        return;
-                    }
+    private void goHomeByDoc(DocumentSnapshot doc, boolean clearTask) {
+        String role = doc.getString("role");
+        if (role == null) role = "student";
 
-                    Class<?> dest = "teacher".equals(role)
-                            ? TeacherHomeActivity.class
-                            : StudentHomeActivity.class;
+        if (isTeacherMode && !"teacher".equals(role)) {
+            Toast.makeText(this, "Tài khoản này không có quyền giảng viên", Toast.LENGTH_LONG).show();
+            mAuth.signOut();
+            GoogleSignIn.getClient(this, new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build()).signOut();
+            return;
+        }
 
-                    Intent i = new Intent(this, dest);
-                    if (clearTask) {
-                        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                    }
-                    startActivity(i);
-                    if (clearTask) finish();
-                })
-                .addOnFailureListener(e ->
-                        Toast.makeText(this, "Lỗi đọc role: " + e.getMessage(), Toast.LENGTH_LONG).show()
-                );
+        Class<?> dest = "teacher".equals(role) ? TeacherHomeActivity.class : StudentHomeActivity.class;
+        Intent i = new Intent(this, dest);
+        if (clearTask) i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(i);
+        if (clearTask) finish();
     }
 }

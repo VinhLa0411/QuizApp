@@ -47,7 +47,7 @@ public class AccountFragment extends Fragment {
         });
 
         // Chỉnh sửa thông tin
-        v.findViewById(R.id.editBtn).setOnClickListener(btn ->
+        v.findViewById(R.id.editInfoBtn).setOnClickListener(btn ->
                 startActivity(new Intent(requireContext(), EditProfileActivity.class)));
 
         // Xem lịch sử làm bài
